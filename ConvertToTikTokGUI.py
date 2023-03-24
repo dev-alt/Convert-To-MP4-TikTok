@@ -4,22 +4,39 @@ import subprocess
 from threading import Thread
 from queue import Queue
 from tqdm import tqdm
-import tkinter as tk
-from tkinter import filedialog
-from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel, QVBoxLayout, QWidget, QComboBox, QPushButton, QProgressBar
+from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel, QVBoxLayout, QWidget, QComboBox, QPushButton, QProgressBar, QFileDialog
+from PyQt5.QtCore import QStandardPaths, QThread, pyqtSignal
 
 
 def browse_input_dir():
-    input_dir = filedialog.askdirectory(title="Select input file folders")
+    input_dir = QFileDialog.getExistingDirectory(
+        None, "Select input file folders")
     return input_dir
 
 
 def browse_output_dir():
-    output_dir = filedialog.askdirectory(title="Select output file folders")
+    output_dir = QFileDialog.getExistingDirectory(
+        None, "Select output file folders")
     return output_dir
 
 
-def convert_videos(codec, input_dir, output_dir):
+def get_ffmpeg_path():
+    default_path = os.path.join(QStandardPaths.standardLocations(
+        QStandardPaths.AppLocalDataLocation)[0], 'ffmpeg.exe')
+    if os.path.exists(default_path):
+        return default_path
+    else:
+        ffmpeg_path, _ = QFileDialog.getOpenFileName(
+            None, "Select FFmpeg executable", "", "Executable Files (*.exe);;All Files (*)")
+        if ffmpeg_path:
+            return ffmpeg_path
+        else:
+            print("No FFmpeg executable selected. Exiting.")
+            sys.exit(1)
+
+
+def convert_videos(codec, input_dir, output_dir, progress_bar):
+
     if not os.path.exists(input_dir):
         print(f"Input directory '{input_dir}' does not exist.")
         sys.exit(1)
@@ -28,7 +45,7 @@ def convert_videos(codec, input_dir, output_dir):
         print(f"Output directory '{output_dir}' does not exist.")
         sys.exit(1)
 
-    ffmpeg_path = 'C:\\Users\\andre\\Desktop\\Libraries\\ffmpeg.exe'
+    ffmpeg_path = get_ffmpeg_path()
     max_buffer_size = 102400
 
     video_files = []
@@ -43,7 +60,7 @@ def convert_videos(codec, input_dir, output_dir):
         try:
             subprocess.run(command, check=True,
                            stderr=subprocess.PIPE, universal_newlines=True)
-            progress_bar.set_description(f"Converted '{input_file}'")
+            progress_bar.setValue(progress_bar.value() + 1)
             progress_bar.update(1)
             return True
         except subprocess.CalledProcessError as e:
@@ -81,7 +98,8 @@ def convert_videos(codec, input_dir, output_dir):
                     f"Output file '{output_file}' already exists, skipping conversion of '{input_file}'.")
                 pbar.update(1)
             else:
-                q.put((input_file, output_file, pbar))
+                q.put((input_file, output_file, progress_bar))
+                self.progress_bar.setRange(0, len(video_files))
 
     q.join()
     for _ in range(num_worker_threads):
@@ -110,7 +128,8 @@ class MainWindow(QMainWindow):
         self.apply_button = QPushButton("Apply")
         self.apply_button.clicked.connect(self.apply_codec)
         layout.addWidget(self.apply_button)
-
+        self.progress_bar = QProgressBar()
+        layout.addWidget(self.progress_bar)
         container = QWidget()
         container.setLayout(layout)
         self.setCentralWidget(container)
@@ -143,7 +162,7 @@ class MainWindow(QMainWindow):
         # if codec == "mpeg4":
             # Check if the 'mpeg4_unpack_bframes' filter is needed and add it here
 
-        convert_videos(codec, input_dir, output_dir)
+        convert_videos(codec, input_dir, output_dir, self.progress_bar)
 
 
 app = QApplication(sys.argv)
