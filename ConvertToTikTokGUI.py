@@ -99,7 +99,7 @@ def convert_videos(codec, input_dir, output_dir, progress_bar):
                 pbar.update(1)
             else:
                 q.put((input_file, output_file, progress_bar))
-                self.progress_bar.setRange(0, len(video_files))
+                pbar.update(1)
 
     q.join()
     for _ in range(num_worker_threads):
