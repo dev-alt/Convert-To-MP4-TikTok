@@ -279,24 +279,18 @@ class MainWindow(QMainWindow):
 
 
 def browse_input_dir():
-    app = QApplication(sys.argv)
     options = QFileDialog.Options()
     options |= QFileDialog.ReadOnly
     input_dir = QFileDialog.getExistingDirectory(
         None, "Select Input Directory", "", options=options)
-    sys.exit(app.exec_())
-
     return input_dir
 
 
 def browse_output_dir():
-    app = QApplication(sys.argv)
     options = QFileDialog.Options()
     options |= QFileDialog.ReadOnly
     output_dir = QFileDialog.getExistingDirectory(
         None, "Select Output Directory", "", options=options)
-    sys.exit(app.exec_())
-
     return output_dir
 
 
