@@ -3,12 +3,12 @@ from PyQt5.QtWidgets import (QMainWindow, QLabel, QVBoxLayout, QWidget, QComboBo
                              QMessageBox, QSpinBox, QGroupBox, QFormLayout)
 from convert_thread import ConvertThread
 from utils import browse_input_dir, browse_output_dir, get_ffmpeg_path, format_time
-from main import logger
 
 
 class MainWindow(QMainWindow):
-    def __init__(self):
+    def __init__(self, logger):
         super().__init__()
+        self.logger = logger
         self.init_ui()
         self.converter = None
         self.conversion_ui = {}
@@ -107,11 +107,8 @@ class MainWindow(QMainWindow):
 
         options = QFileDialog.Options()
         options |= QFileDialog.ReadOnly
-        input_dir = QFileDialog.getExistingDirectory(
-            self, "Select Input Directory", "", options=options, filter="Video Files (*.avi *.mkv *.wmv *.flv *.webm)")
-
-        output_dir = QFileDialog.getExistingDirectory(
-            self, "Select Output Directory", "", options=options)
+        input_dir = browse_input_dir(self)
+        output_dir = browse_output_dir(self)
 
         if not os.path.exists(input_dir):
             QMessageBox.critical(
@@ -133,7 +130,7 @@ class MainWindow(QMainWindow):
         num_worker_threads = self.thread_spinbox.value()
 
         self.converter = ConvertThread(
-            codec, input_dir, output_dir, video_files, ffmpeg_path, num_worker_threads, logger)
+            codec, input_dir, output_dir, video_files, ffmpeg_path, num_worker_threads, self.logger)
 
         self.converter.progress_signal.connect(self.update_progress)
         self.converter.time_remaining_signal.connect(

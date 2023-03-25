@@ -8,7 +8,7 @@ logger = setup_logger()
 if __name__ == "__main__":
     app = QApplication(sys.argv)
 
-    main_window = MainWindow()
+    main_window = MainWindow(logger)
     main_window.setWindowTitle("Video Converter")
     main_window.show()
 

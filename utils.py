@@ -1,19 +1,20 @@
 from PyQt5.QtWidgets import QFileDialog
 
 
-def browse_input_dir():
+def browse_input_dir(parent=None):
     options = QFileDialog.Options()
     options |= QFileDialog.ReadOnly
     input_dir = QFileDialog.getExistingDirectory(
-        None, "Select Input Directory", "", options=options)
+        parent, "Select input folder", "", options=options)
+
     return input_dir
 
 
-def browse_output_dir():
+def browse_output_dir(parent=None):
     options = QFileDialog.Options()
     options |= QFileDialog.ReadOnly
     output_dir = QFileDialog.getExistingDirectory(
-        None, "Select Output Directory", "", options=options)
+        parent, "Select Output Directory", "", options=options)
     return output_dir
 
 
