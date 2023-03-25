@@ -5,6 +5,7 @@ import threading
 from threading import Thread
 from queue import Queue
 from PyQt5.QtCore import QThread, pyqtSignal
+import json
 
 
 class ConvertThread(QThread):
@@ -64,9 +65,10 @@ class ConvertThread(QThread):
         self.cond.notify_all()
 
     def stop(self):
-        self.is_stopped = True
-        self.is_paused = False
-        self.cond.notify_all()
+        with self.cond:
+            self.is_stopped = True
+            self.is_paused = False
+            self.cond.notify_all()
 
     def worker(self, q, failed_files):
         converted_files = 0
@@ -79,6 +81,7 @@ class ConvertThread(QThread):
             if item is None:
                 break
             input_file, output_file = item
+            self.total_duration = self.get_video_duration(input_file)
             success = self.process_video(input_file, output_file)
             if not success:
                 failed_files.append(input_file)
@@ -89,18 +92,62 @@ class ConvertThread(QThread):
             elapsed_time = time.time() - start_time
             remaining_time = (self.total_files - converted_files) * \
                 (elapsed_time / converted_files)
-            self.time_remaining_signal.emit(str(remaining_time))
+            self.time_remaining_signal.emit(remaining_time)
             q.task_done()
 
     def process_video(self, input_file, output_file):
         command = [self.ffmpeg_path, '-i', input_file, '-map_metadata', '-1', '-map_chapters', '-1', '-c:v', self.codec, '-crf', '18', '-preset',
                    'medium', '-c:a', 'aac', '-b:a', '128k', '-bufsize', '102400', '-an', output_file]
         try:
-            subprocess.run(command, check=True,
-                           stderr=subprocess.PIPE, universal_newlines=True)
-            self.logger.info(
-                f"Successfully converted '{input_file}' to '{output_file}'.")
-            return True
-        except subprocess.CalledProcessError as e:
-            self.logger.error(f"Error converting '{input_file}': {e.stderr}")
+            process = subprocess.Popen(
+                command, stderr=subprocess.PIPE, universal_newlines=True)
+
+            while True:
+                line = process.stderr.readline()
+                if not line:
+                    break
+                # Parse the line to get the progress percentage
+                progress = self.parse_progress(line)
+                if progress is not None:
+                    self.progress_signal.emit(
+                        input_file, output_file, progress)
+
+            process.wait()
+            if process.returncode == 0:
+                self.logger.info(
+                    f"Successfully converted '{input_file}' to '{output_file}'.")
+                return True
+            else:
+                self.logger.error(
+                    f"Error converting '{input_file}': Non-zero return code")
+                return False
+        except Exception as e:
+            self.logger.error(f"Error converting '{input_file}': {e}")
             return False
+
+    def parse_progress(self, line):
+        # Parse FFmpeg output to get the progress percentage
+        if 'frame=' in line:
+            parts = line.split()
+            for part in parts:
+                if 'time=' in part:
+                    current_time = part.split('=')[-1]
+                    h, m, s = map(float, current_time.split(':'))
+                    current_seconds = h * 3600 + m * 60 + s
+                    if self.total_duration > 0:
+                        progress = (current_seconds /
+                                    self.total_duration) * 100
+                        return progress
+        return None
+
+    def get_video_duration(self, input_file):
+        command = [os.path.join(os.path.dirname(self.ffmpeg_path), "ffprobe"), "-v", "error", "-show_entries", "format=duration", "-of",
+                   "json", input_file]
+        try:
+            output = subprocess.check_output(command, universal_newlines=True)
+            metadata = json.loads(output)
+            duration = float(metadata["format"]["duration"])
+            return duration
+        except Exception as e:
+            self.logger.error(f"Error getting duration of '{input_file}': {e}")
+            return None
