@@ -1,9 +1,9 @@
 import os
-from PyQt5.QtWidgets import (QApplication, QMainWindow, QLabel, QVBoxLayout, QWidget, QComboBox, QPushButton, QProgressBar, QFileDialog,
-                             QMessageBox, QSpinBox, QSlider, QHBoxLayout, QLineEdit, QGroupBox, QFormLayout)
-from PyQt5.QtCore import QStandardPaths, QThread, pyqtSignal
+from PyQt5.QtWidgets import (QMainWindow, QLabel, QVBoxLayout, QWidget, QComboBox, QPushButton, QProgressBar, QFileDialog,
+                             QMessageBox, QSpinBox, QGroupBox, QFormLayout)
 from convert_thread import ConvertThread
 from utils import browse_input_dir, browse_output_dir, get_ffmpeg_path, format_time
+from main import logger
 
 
 class MainWindow(QMainWindow):
