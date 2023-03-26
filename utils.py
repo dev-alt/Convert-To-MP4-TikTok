@@ -26,12 +26,6 @@ def browse_output_dir(parent=None):
 
 
 def format_time(seconds):
-    h, remainder = divmod(seconds, 3600)
-    m, s = divmod(remainder, 60)
-    return f"{int(h)}h {int(m)}m {int(s)}s"
-
-
-def format_time(seconds):
     """Formats time in seconds to HH:MM:SS string format."""
     minutes, seconds = divmod(seconds, 60)
     hours, minutes = divmod(minutes, 60)

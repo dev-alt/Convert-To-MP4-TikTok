@@ -11,9 +11,8 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.logger = logger
         self.settings = Settings('settings.json')
-
+        self.init_converter()
         self.init_ui()
-        self.converter = None
         self.conversion_ui = {}
         self.connect_signals()
         self.input_dir = ""
@@ -89,6 +88,23 @@ class MainWindow(QMainWindow):
         container.setLayout(layout)
         self.setCentralWidget(container)
 
+    def init_converter(self):
+        self.converter = ConvertThread(self.logger)
+        self.converter.new_conversion_signal.connect(
+            lambda input_file, output_file: self.conversion_ui.update(
+                {
+                    output_file: self.create_new_conversion_ui(
+                        input_file, output_file
+                    )
+                }
+            )
+        )
+        self.converter.progress_signal.connect(self.update_progress)
+        self.converter.time_remaining_signal.connect(
+            self.update_time_remaining
+        )
+        self.converter.error_signal.connect(self.display_error)
+
     def connect_signals(self):
         if self.converter is None:
             return
@@ -148,14 +164,20 @@ class MainWindow(QMainWindow):
         ffmpeg_path = get_ffmpeg_path()
         num_worker_threads = self.thread_spinbox.value()
 
-        self.converter = ConvertThread(
-            codec, input_dir, output_dir, video_files, ffmpeg_path, num_worker_threads, self.logger)
+        # Set the properties for the converter object
+        self.converter.codec = codec
+        self.converter.input_dir = input_dir
+        self.converter.output_dir = output_dir
+        self.converter.video_files = video_files  # Set video_files here
+        self.converter.ffmpeg_path = ffmpeg_path
+        self.converter.num_worker_threads = num_worker_threads
 
-        self.converter.progress_signal.connect(self.update_progress)
-        self.converter.time_remaining_signal.connect(
-            self.update_time_remaining)
-        if self.converter is not None:
-            self.converter.error_signal.connect(self.display_error)
+        # Update the total_files attribute for the ConvertThread object
+        self.converter.total_files = len(video_files)
+
+        # Update the time_remaining_label to display "Estimated time remaining: N/A"
+        self.time_remaining_label.setText("Estimated time remaining: N/A")
+
         self.converter.start()
         self.input_dir = input_dir
 

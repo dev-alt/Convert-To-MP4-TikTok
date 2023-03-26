@@ -7,24 +7,30 @@ from queue import Queue
 from PyQt5.QtCore import QThread, pyqtSignal
 import json
 import datetime
-from settings import Settings
 from utils import format_time
+import re
 
 
 class ConvertThread(QThread):
     progress_signal = pyqtSignal(str, str, float)
     time_remaining_signal = pyqtSignal(str)
     error_signal = pyqtSignal(str)
+    new_conversion_signal = pyqtSignal(str, str, float)
 
-    def __init__(self, codec, input_dir, output_dir, video_files, ffmpeg_path, num_worker_threads, logger):
+    def __init__(self, logger):
         super().__init__()
         self.logger = logger
-        self.codec = codec
-        self.input_dir = input_dir
-        self.output_dir = output_dir
-        self.video_files = video_files
-        self.ffmpeg_path = ffmpeg_path
-        self.num_worker_threads = num_worker_threads
+        self.is_paused = False
+        self.is_stopped = False
+        self.process = None
+
+        # Initialize attributes
+        self.codec = None
+        self.input_dir = None
+        self.output_dir = None
+        self.video_files = []  # Initialize video_files as an empty list
+        self.ffmpeg_path = None
+        self.num_worker_threads = None
         self.total_files = len(self.video_files)
         self.is_paused = False
         self.is_stopped = False
@@ -42,7 +48,6 @@ class ConvertThread(QThread):
             t.start()
             threads.append(t)
 
-        start_time = time.time()
         for input_file in self.video_files:
             output_file = os.path.join(self.output_dir, os.path.splitext(
                 os.path.basename(input_file))[0] + '.mp4')
@@ -54,11 +59,18 @@ class ConvertThread(QThread):
             else:
                 q.put((input_file, output_file))
 
+        # Start the timer
+        start_time = time.time()
+
         q.join()
         for _ in range(self.num_worker_threads):
             q.put(None)
         for t in threads:
             t.join()
+
+        # Calculate the time elapsed during the conversion process
+        time_elapsed = time.time() - start_time
+        print(f"Time elapsed: {format_time(time_elapsed)}")
 
     def pause(self):
         self.is_paused = True
@@ -145,17 +157,14 @@ class ConvertThread(QThread):
 
     def parse_progress(self, line):
         # Parse FFmpeg output to get the progress percentage
-        if 'frame=' in line:
-            parts = line.split()
-            for part in parts:
-                if 'time=' in part:
-                    current_time = part.split('=')[-1]
-                    h, m, s = map(float, current_time.split(':'))
-                    current_seconds = h * 3600 + m * 60 + s
-                    if self.total_duration > 0:
-                        progress = (current_seconds /
-                                    self.total_duration) * 100
-                        return progress
+        time_match = re.search(r"time=(\d{2}:\d{2}:\d{2}\.\d{2})", line)
+        if time_match:
+            current_time = time_match.group(1)
+            h, m, s = map(float, current_time.split(':'))
+            current_seconds = h * 3600 + m * 60 + s
+            if self.total_duration > 0:
+                progress = (current_seconds / self.total_duration) * 100
+                return progress
         return None
 
     def get_video_duration(self, input_file):
