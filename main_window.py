@@ -3,16 +3,21 @@ from PyQt5.QtWidgets import (QMainWindow, QLabel, QVBoxLayout, QWidget, QComboBo
                              QMessageBox, QSpinBox, QGroupBox, QFormLayout)
 from convert_thread import ConvertThread
 from utils import browse_input_dir, browse_output_dir, get_ffmpeg_path, format_time
+from settings import Settings
 
 
 class MainWindow(QMainWindow):
     def __init__(self, logger):
         super().__init__()
         self.logger = logger
+        self.settings = Settings('settings.json')
+
         self.init_ui()
         self.converter = None
         self.conversion_ui = {}
         self.connect_signals()
+        self.input_dir = ""
+        self.output_dir = ""
 
     def init_ui(self):
         layout = QVBoxLayout()
@@ -65,6 +70,20 @@ class MainWindow(QMainWindow):
         self.start_process_button = QPushButton("Start Process")
         self.start_process_button.clicked.connect(self.apply_codec)
         layout.addWidget(self.start_process_button)
+
+        # Load and save settings buttons
+        settings_group = QGroupBox("Settings")
+        settings_layout = QFormLayout()
+        self.load_settings_button = QPushButton("Load Settings")
+        self.load_settings_button.clicked.connect(self.load_settings)
+        settings_layout.addRow(
+            QLabel("Load Settings:"), self.load_settings_button)
+        self.save_settings_button = QPushButton("Save Settings")
+        self.save_settings_button.clicked.connect(self.save_settings)
+        settings_layout.addRow(
+            QLabel("Save Settings:"), self.save_settings_button)
+        settings_group.setLayout(settings_layout)
+        layout.addWidget(settings_group)
 
         container = QWidget()
         container.setLayout(layout)
@@ -138,6 +157,7 @@ class MainWindow(QMainWindow):
         if self.converter is not None:
             self.converter.error_signal.connect(self.display_error)
         self.converter.start()
+        self.input_dir = input_dir
 
     def update_progress(self, input_file, output_file, progress):
         self.current_file_label.setText(f"Current file: {input_file}")
@@ -176,3 +196,23 @@ class MainWindow(QMainWindow):
 
     def display_error(self, error_msg):
         QMessageBox.critical(self, "Conversion Error", error_msg)
+
+    def apply_settings(self):
+        self.comboBox.setCurrentText(self.settings.codec)
+        self.thread_spinbox.setValue(self.settings.num_worker_threads)
+
+    def save_settings(self):
+        self.settings.codec = self.comboBox.currentText()
+        self.settings.input_dir = self.input_dir
+        self.settings.output_dir = self.output_dir
+        self.settings.num_worker_threads = self.thread_spinbox.value()
+        self.settings.save()
+
+    def load_settings(self):
+        if self.settings.exists():
+            self.settings.load()
+            self.apply_settings()
+            self.logger.info("Settings loaded successfully.")
+        else:
+            self.logger.info(
+                "Settings file not found. Using default settings.")

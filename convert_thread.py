@@ -6,6 +6,9 @@ from threading import Thread
 from queue import Queue
 from PyQt5.QtCore import QThread, pyqtSignal
 import json
+import datetime
+from settings import Settings
+from utils import format_time
 
 
 class ConvertThread(QThread):
@@ -92,7 +95,8 @@ class ConvertThread(QThread):
             elapsed_time = time.time() - start_time
             remaining_time = (self.total_files - converted_files) * \
                 (elapsed_time / converted_files)
-            self.time_remaining_signal.emit(remaining_time)
+            formatted_remaining_time = format_time(remaining_time)
+            self.time_remaining_signal.emit(formatted_remaining_time)
             q.task_done()
 
     def process_video(self, input_file, output_file):
@@ -124,6 +128,20 @@ class ConvertThread(QThread):
         except Exception as e:
             self.logger.error(f"Error converting '{input_file}': {e}")
             return False
+
+    def update_time_remaining(self, time_remaining):
+        try:
+            hours, minutes, seconds = map(int, time_remaining.split(' '))
+            total_seconds = hours * 3600 + minutes * 60 + seconds
+            formatted_time = format_time(total_seconds)
+            self.time_remaining_label.setText(
+                f"Estimated time remaining: {formatted_time}")
+            for progress_bar in self.conversion_ui.values():
+                progress_bar[3].setText(
+                    f"Estimated time remaining: {formatted_time}")
+        except ValueError:
+            self.logger.error(
+                f"Invalid time remaining format: {time_remaining}")
 
     def parse_progress(self, line):
         # Parse FFmpeg output to get the progress percentage
