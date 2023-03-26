@@ -4,6 +4,7 @@ from PyQt5.QtWidgets import (QMainWindow, QLabel, QVBoxLayout, QWidget, QComboBo
 from convert_thread import ConvertThread
 from utils import browse_input_dir, browse_output_dir, get_ffmpeg_path, format_time
 from settings import Settings
+import re
 
 
 class MainWindow(QMainWindow):
@@ -101,8 +102,8 @@ class MainWindow(QMainWindow):
         )
         self.converter.progress_signal.connect(self.update_progress)
         self.converter.time_remaining_signal.connect(
-            self.update_time_remaining
-        )
+            self.update_time_remaining)
+        print("Connected time_remaining_signal to update_time_remaining function.")
         self.converter.error_signal.connect(self.display_error)
 
     def connect_signals(self):
@@ -192,12 +193,10 @@ class MainWindow(QMainWindow):
             current_progress_label.setText(f"Progress: {progress}%")
 
     def update_time_remaining(self, time_remaining):
-        formatted_time = format_time(float(time_remaining))
+        total_seconds = float(time_remaining)
+        formatted_time = format_time(total_seconds)
         self.time_remaining_label.setText(
             f"Estimated time remaining: {formatted_time}")
-        for progress_bar in self.conversion_ui.values():
-            progress_bar[3].setText(
-                f"Estimated time remaining: {formatted_time}")
 
     def create_new_conversion_ui(self, input_file, output_file):
         layout = QVBoxLayout()
@@ -209,7 +208,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(current_file_label)
         current_progress_label = QLabel("Progress: N/A")
         layout.addWidget(current_progress_label)
-        time_remaining_label = QLabel("Estimated time remaining: N/A")
+        time_remaining_label = QLabel("Estimated time remaining: 0s")
         layout.addWidget(time_remaining_label)
         container = QWidget()
         container.setLayout(layout)

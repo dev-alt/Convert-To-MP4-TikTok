@@ -141,20 +141,6 @@ class ConvertThread(QThread):
             self.logger.error(f"Error converting '{input_file}': {e}")
             return False
 
-    def update_time_remaining(self, time_remaining):
-        try:
-            hours, minutes, seconds = map(int, time_remaining.split(' '))
-            total_seconds = hours * 3600 + minutes * 60 + seconds
-            formatted_time = format_time(total_seconds)
-            self.time_remaining_label.setText(
-                f"Estimated time remaining: {formatted_time}")
-            for progress_bar in self.conversion_ui.values():
-                progress_bar[3].setText(
-                    f"Estimated time remaining: {formatted_time}")
-        except ValueError:
-            self.logger.error(
-                f"Invalid time remaining format: {time_remaining}")
-
     def parse_progress(self, line):
         # Parse FFmpeg output to get the progress percentage
         time_match = re.search(r"time=(\d{2}:\d{2}:\d{2}\.\d{2})", line)
