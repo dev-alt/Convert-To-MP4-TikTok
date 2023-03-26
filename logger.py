@@ -1,5 +1,6 @@
 import logging
 import os
+from settings import Settings
 
 
 def setup_logger(log_file="conversion.log"):

@@ -1,13 +1,20 @@
 from PyQt5.QtWidgets import QFileDialog
+from settings import Settings
 
 
-def browse_input_dir(parent=None):
+def browse_input_dir(main_window):
+    settings = main_window.settings
+    if settings.input_dir:
+        return settings.input_dir
+
     options = QFileDialog.Options()
-    options |= QFileDialog.ReadOnly
+    options |= QFileDialog.ShowDirsOnly
     input_dir = QFileDialog.getExistingDirectory(
-        parent, "Select input folder", "", options=options)
-
-    return input_dir
+        main_window, "Select Input Directory", "", options=options)
+    if input_dir:
+        settings.input_dir = input_dir
+        return input_dir
+    return ""
 
 
 def browse_output_dir(parent=None):
@@ -22,6 +29,13 @@ def format_time(seconds):
     h, remainder = divmod(seconds, 3600)
     m, s = divmod(remainder, 60)
     return f"{int(h)}h {int(m)}m {int(s)}s"
+
+
+def format_time(seconds):
+    """Formats time in seconds to HH:MM:SS string format."""
+    minutes, seconds = divmod(seconds, 60)
+    hours, minutes = divmod(minutes, 60)
+    return f"{hours:02}:{minutes:02}:{seconds:02}"
 
 
 def get_ffmpeg_path():
