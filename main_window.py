@@ -192,11 +192,15 @@ class MainWindow(QMainWindow):
             current_file_label.setText(f"Current file: {input_file}")
             current_progress_label.setText(f"Progress: {progress}%")
 
-    def update_time_remaining(self, time_remaining):
-        total_seconds = float(time_remaining)
-        formatted_time = format_time(total_seconds)
+    # def update_time_remaining(self, time_remaining):
+    #     total_seconds = float(time_remaining)
+    #     formatted_time = format_time(total_seconds)
+    #     self.time_remaining_label.setText(
+    #         f"Estimated time remaining: {formatted_time}")
+
+    def update_time_remaining(self, formatted_time_remaining):
         self.time_remaining_label.setText(
-            f"Estimated time remaining: {formatted_time}")
+            f"Estimated time remaining: {formatted_time_remaining}")
 
     def create_new_conversion_ui(self, input_file, output_file):
         layout = QVBoxLayout()

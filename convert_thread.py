@@ -4,7 +4,7 @@ import time
 import threading
 from threading import Thread
 from queue import Queue
-from PyQt5.QtCore import QThread, pyqtSignal
+from PyQt5.QtCore import QThread, pyqtSignal, QMutex, QMutexLocker, QWaitCondition
 import json
 import datetime
 from utils import format_time
@@ -34,7 +34,8 @@ class ConvertThread(QThread):
         self.total_files = len(self.video_files)
         self.is_paused = False
         self.is_stopped = False
-        self.cond = threading.Condition()
+        self.mutex = QMutex()
+        self.cond = QWaitCondition()
 
     def run(self):
         q = Queue()
@@ -73,25 +74,28 @@ class ConvertThread(QThread):
         print(f"Time elapsed: {format_time(time_elapsed)}")
 
     def pause(self):
+        _locker = QMutexLocker(self.mutex)
         self.is_paused = True
 
     def resume(self):
+        _locker = QMutexLocker(self.mutex)
         self.is_paused = False
-        self.cond.notify_all()
+        self.cond.wakeAll()
 
     def stop(self):
-        with self.cond:
-            self.is_stopped = True
-            self.is_paused = False
-            self.cond.notify_all()
+        _locker = QMutexLocker(self.mutex)
+        self.is_stopped = True
+        self.is_paused = False
+        self.cond.wakeAll()
 
     def worker(self, q, failed_files):
         converted_files = 0
         start_time = time.time()
         while True:
-            with self.cond:
-                while self.is_paused:
-                    self.cond.wait()
+            locker = QMutexLocker(self.mutex)
+            while self.is_paused:
+                self.cond.wait(self.mutex)
+            locker.unlock()
             item = q.get()
             if item is None:
                 break
@@ -107,8 +111,7 @@ class ConvertThread(QThread):
             elapsed_time = time.time() - start_time
             remaining_time = (self.total_files - converted_files) * \
                 (elapsed_time / converted_files)
-            formatted_remaining_time = format_time(remaining_time)
-            self.time_remaining_signal.emit(formatted_remaining_time)
+            self.time_remaining_signal.emit(format_time(remaining_time))
             q.task_done()
 
     def process_video(self, input_file, output_file):
