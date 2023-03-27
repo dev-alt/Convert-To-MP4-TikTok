@@ -1,5 +1,4 @@
 from PyQt5.QtWidgets import QFileDialog
-from settings import Settings
 
 
 def browse_input_dir(main_window):

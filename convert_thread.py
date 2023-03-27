@@ -17,12 +17,14 @@ class ConvertThread(QThread):
     error_signal = pyqtSignal(str)
     new_conversion_signal = pyqtSignal(str, str, float)
 
-    def __init__(self, logger):
+    def __init__(self, logger, main_window, parent=None):
         super().__init__()
         self.logger = logger
+        self.main_window = main_window
         self.is_paused = False
         self.is_stopped = False
         self.process = None
+        self.should_stop = False
 
         # Initialize attributes
         self.codec = None
@@ -44,11 +46,14 @@ class ConvertThread(QThread):
         converted_files = 0
 
         threads = []
+
+        for video_file in self.video_files:
+            if self.main_window.should_stop:  # Check if the thread should stop
+                break
         for _ in range(self.num_worker_threads):
             t = Thread(target=self.worker, args=(q, failed_files))
             t.start()
             threads.append(t)
-
         for input_file in self.video_files:
             output_file = os.path.join(self.output_dir, os.path.splitext(
                 os.path.basename(input_file))[0] + '.mp4')
@@ -86,6 +91,7 @@ class ConvertThread(QThread):
         _locker = QMutexLocker(self.mutex)
         self.is_stopped = True
         self.is_paused = False
+        self.should_stop = True
         self.cond.wakeAll()
 
     def worker(self, q, failed_files):
@@ -167,3 +173,6 @@ class ConvertThread(QThread):
         except Exception as e:
             self.logger.error(f"Error getting duration of '{input_file}': {e}")
             return None
+
+    def stop_conversion(self):
+        self.converter.should_stop = True

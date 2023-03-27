@@ -1,10 +1,9 @@
 import os
-from PyQt5.QtWidgets import (QMainWindow, QLabel, QVBoxLayout, QWidget, QComboBox, QPushButton, QProgressBar, QFileDialog,
-                             QMessageBox, QSpinBox, QGroupBox, QFormLayout)
+from PyQt5.QtWidgets import (QMainWindow, QLabel, QVBoxLayout, QWidget, QComboBox, QPushButton, QProgressBar,
+                             QFileDialog, QMessageBox, QSpinBox, QGroupBox, QFormLayout, QGridLayout)
 from convert_thread import ConvertThread
 from utils import browse_input_dir, browse_output_dir, get_ffmpeg_path, format_time
 from settings import Settings
-import re
 
 
 class MainWindow(QMainWindow):
@@ -18,93 +17,65 @@ class MainWindow(QMainWindow):
         self.connect_signals()
         self.input_dir = ""
         self.output_dir = ""
+        self.should_stop = False
+        self.progress_bars = {}
+        self.time_remaining_labels = {}
+        self.conversion_containers = []
+        self.conversion_threads = []
 
     def init_ui(self):
-        layout = QVBoxLayout()
+        """Initialize the user interface."""
+        layout = QGridLayout()
 
         # Pause button
         self.pause_resume_button = QPushButton("Pause")
         self.pause_resume_button.clicked.connect(self.pause_resume_conversion)
-        layout.addWidget(self.pause_resume_button)
+        layout.addWidget(self.pause_resume_button, 0, 0)
 
         # Stop button
         self.stop_button = QPushButton("Stop")
         self.stop_button.clicked.connect(self.stop_conversion)
-        layout.addWidget(self.stop_button)
+        layout.addWidget(self.stop_button, 0, 1)
 
         # Codec selection
-        codec_group = QGroupBox("Codec Selection")
-        codec_layout = QFormLayout()
-        self.comboBox = QComboBox()
-        self.comboBox.addItem("libx264")
-        codec_layout.addRow(QLabel("Codec:"), self.comboBox)
-        self.label = QLabel("Selected Codec: libx264")
-        codec_layout.addWidget(self.label)
-        self.comboBox.currentTextChanged.connect(self.update_label)
-        codec_group.setLayout(codec_layout)
-        layout.addWidget(codec_group)
+        codec_group = self.create_codec_group()
+        layout.addWidget(codec_group, 1, 0, 1, 2)
 
         # Threads selection
-        threads_group = QGroupBox("Thread Settings")
-        threads_layout = QFormLayout()
-        self.thread_spinbox = QSpinBox()
-        self.thread_spinbox.setMinimum(1)
-        self.thread_spinbox.setMaximum(8)
-        self.thread_spinbox.setValue(4)
-        threads_layout.addRow(
-            QLabel("Number of Threads:"), self.thread_spinbox)
-        threads_group.setLayout(threads_layout)
-        layout.addWidget(threads_group)
+        threads_group = self.create_threads_group()
+        layout.addWidget(threads_group, 2, 0, 1, 2)
 
         # Current file and progress
         self.current_file_label = QLabel("Current file: N/A")
-        layout.addWidget(self.current_file_label)
+        layout.addWidget(self.current_file_label, 3, 0)
         self.current_progress_label = QLabel("Progress: N/A")
-        layout.addWidget(self.current_progress_label)
+        layout.addWidget(self.current_progress_label, 3, 1)
 
         # Estimated time remaining
         self.time_remaining_label = QLabel("Estimated time remaining: N/A")
-        layout.addWidget(self.time_remaining_label)
+        layout.addWidget(self.time_remaining_label, 4, 0, 1, 2)
 
         # Start process button
         self.start_process_button = QPushButton("Start Process")
         self.start_process_button.clicked.connect(self.apply_codec)
-        layout.addWidget(self.start_process_button)
+        layout.addWidget(self.start_process_button, 5, 0, 1, 2)
 
         # Load and save settings buttons
-        settings_group = QGroupBox("Settings")
-        settings_layout = QFormLayout()
-        self.load_settings_button = QPushButton("Load Settings")
-        self.load_settings_button.clicked.connect(self.load_settings)
-        settings_layout.addRow(
-            QLabel("Load Settings:"), self.load_settings_button)
-        self.save_settings_button = QPushButton("Save Settings")
-        self.save_settings_button.clicked.connect(self.save_settings)
-        settings_layout.addRow(
-            QLabel("Save Settings:"), self.save_settings_button)
-        settings_group.setLayout(settings_layout)
-        layout.addWidget(settings_group)
+        settings_group = self.create_settings_group()
+        layout.addWidget(settings_group, 6, 0, 1, 2)
 
         container = QWidget()
         container.setLayout(layout)
         self.setCentralWidget(container)
 
     def init_converter(self):
-        self.converter = ConvertThread(self.logger)
-        self.converter.new_conversion_signal.connect(
-            lambda input_file, output_file: self.conversion_ui.update(
-                {
-                    output_file: self.create_new_conversion_ui(
-                        input_file, output_file
-                    )
-                }
-            )
-        )
+        self.converter = ConvertThread(self.logger, self)
         self.converter.progress_signal.connect(self.update_progress)
         self.converter.time_remaining_signal.connect(
-            self.update_time_remaining)
-        print("Connected time_remaining_signal to update_time_remaining function.")
-        self.converter.error_signal.connect(self.display_error)
+            self.update_time_remaining)  # Changed the method name here
+        self.converter.error_signal.connect(self.display_error_message)
+        self.converter.new_conversion_signal.connect(
+            lambda input_file, output_file, _: self.create_new_conversion_ui(input_file, output_file))
 
     def connect_signals(self):
         if self.converter is None:
@@ -185,18 +156,14 @@ class MainWindow(QMainWindow):
     def update_progress(self, input_file, output_file, progress):
         self.current_file_label.setText(f"Current file: {input_file}")
         self.current_progress_label.setText(f"Progress: {progress}%")
+        if input_file in self.progress_bars:
+            self.progress_bars[input_file].setValue(progress)
         if output_file in self.conversion_ui:
             progress_bar, current_file_label, current_progress_label, time_remaining_label = self.conversion_ui[
                 output_file]
             progress_bar.setValue(progress)
             current_file_label.setText(f"Current file: {input_file}")
             current_progress_label.setText(f"Progress: {progress}%")
-
-    # def update_time_remaining(self, time_remaining):
-    #     total_seconds = float(time_remaining)
-    #     formatted_time = format_time(total_seconds)
-    #     self.time_remaining_label.setText(
-    #         f"Estimated time remaining: {formatted_time}")
 
     def update_time_remaining(self, formatted_time_remaining):
         self.time_remaining_label.setText(
@@ -207,6 +174,8 @@ class MainWindow(QMainWindow):
         layout.addWidget(QLabel(f"Input file: {input_file}"))
         layout.addWidget(QLabel(f"Output file: {output_file}"))
         progress_bar = QProgressBar()
+        progress_bar.setMaximum(100)
+        progress_bar.setValue(0)
         layout.addWidget(progress_bar)
         current_file_label = QLabel("Current file: N/A")
         layout.addWidget(current_file_label)
@@ -216,10 +185,15 @@ class MainWindow(QMainWindow):
         layout.addWidget(time_remaining_label)
         container = QWidget()
         container.setLayout(layout)
+        self.conversion_containers.append(container)
         self.layout().addWidget(container)
+        self.progress_bars[input_file] = progress_bar
+        self.conversion_ui[output_file] = (
+            progress_bar, current_file_label, current_progress_label, time_remaining_label)
+
         return progress_bar, current_file_label, current_progress_label, time_remaining_label
 
-    def display_error(self, error_msg):
+    def display_error_message(self, error_msg):
         QMessageBox.critical(self, "Conversion Error", error_msg)
 
     def apply_settings(self):
@@ -241,3 +215,47 @@ class MainWindow(QMainWindow):
         else:
             self.logger.info(
                 "Settings file not found. Using default settings.")
+
+    def create_codec_group(self):
+        """Create codec selection group."""
+        codec_group = QGroupBox("Codec Selection")
+        codec_layout = QFormLayout()
+        self.comboBox = QComboBox()
+        self.comboBox.addItem("libx264")
+        codec_layout.addRow(QLabel("Codec:"), self.comboBox)
+        self.label = QLabel("Selected Codec: libx264")
+        codec_layout.addWidget(self.label)
+        self.comboBox.currentTextChanged.connect(self.update_label)
+        codec_group.setLayout(codec_layout)
+        return codec_group
+
+    def create_settings_group(self):
+        """Create settings group."""
+        settings_group = QGroupBox("Settings")
+        settings_layout = QFormLayout()
+        self.load_settings_button = QPushButton("Load Settings")
+        self.load_settings_button.clicked.connect(self.load_settings)
+        settings_layout.addRow(QLabel("Load Settings:"),
+                               self.load_settings_button)
+        self.save_settings_button = QPushButton("Save Settings")
+        self.save_settings_button.clicked.connect(self.save_settings)
+        settings_layout.addRow(QLabel("Save Settings:"),
+                               self.save_settings_button)
+        settings_group.setLayout(settings_layout)
+        return settings_group
+
+    def create_threads_group(self):
+        """Create threads selection group."""
+        threads_group = QGroupBox("Thread Settings")
+        threads_layout = QFormLayout()
+        self.thread_spinbox = QSpinBox()
+        self.thread_spinbox.setMinimum(1)
+        self.thread_spinbox.setMaximum(8)
+        self.thread_spinbox.setValue(4)
+        threads_layout.addRow(
+            QLabel("Number of Threads:"), self.thread_spinbox)
+        threads_group.setLayout(threads_layout)
+        return threads_group
+
+    def stop_conversion(self):
+        self.should_stop = True
